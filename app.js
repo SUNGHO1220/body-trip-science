@@ -71,6 +71,7 @@ function chapter(id) {
   setAccent(c); setBar(`${c.emo} ${c.title}`, '#/'); setTabs('home'); focusMode(false);
   const read = store.get('read', {});
   const hide = store.get('hide', false);
+  const xb = store.get('examBest', {})[id];
   app.innerHTML = `
   <div class="ch-title"><h1>${c.title}</h1><p>${c.intro}</p></div>
   <button class="switch" data-act="hide" aria-pressed="${hide}"><span>🙈 핵심어 가리기 <small style="font-weight:600">(눌러서 하나씩 확인)</small></span><span class="tg"></span></button>
@@ -84,6 +85,7 @@ function chapter(id) {
   </div>
   <div class="cta">
     <a class="btn main" href="#/q/${id}/10">✏️ 문제 풀기 (${Math.min(10, QUIZ[id].length)}문제)</a>
+    ${EXAM[id] ? `<a class="btn" href="#/x/${id}">🎯 수능 실전 문제 (${EXAM[id].length}문항)${xb !== undefined ? ` · 최고 ${xb}점` : ''}</a>` : ''}
     <div class="btn-row"><a class="btn" href="#/f/${id}">🃏 암기 카드</a><a class="btn" href="#/q/${id}/all">전체 ${QUIZ[id].length}문제</a></div>
   </div>`;
   initWidgets();
@@ -346,6 +348,54 @@ function wrongHome() {
     : `<div class="empty"><span>🌟</span><p>아직 틀린 문제가 없어요.<br>문제를 풀면 틀린 것이 여기에 모여요.</p></div>`;
 }
 
+/* ---------- 수능 실전 ---------- */
+let X = null;
+const NO = ['①', '②', '③', '④', '⑤'];
+const GA = 'ㄱㄴㄷㄹ';
+function startExam(id) {
+  const c = chById(id);
+  if (!c || !EXAM[id]) return home();
+  setAccent(c); setBar(`${c.emo} ${c.title} 수능 실전`, `#/c/${id}`); setTabs('home'); focusMode(true);
+  X = { id, list: EXAM[id], pick: {}, done: false };
+  renderExam();
+}
+// 선택지별 해설. <보기>형은 각 보기의 정오로 오답 이유를 만든다.
+function examWhy(q) {
+  if (!q.b) return q.o.map((_, i) => `<li${i === q.a ? ' class="ok"' : ''}><b>${NO[i]}</b> ${q.x[i]}</li>`).join('');
+  const T = q.b.map((s, i) => s[1] ? GA[i] : '').filter(Boolean);
+  const judge = q.b.map((s, i) => `<li${s[1] ? ' class="ok"' : ''}><b>${GA[i]}. ${s[1] ? '옳음' : '틀림'}</b> ${s[2]}</li>`).join('');
+  const opts = q.o.map((o, i) => {
+    if (i === q.a) return `<li class="ok"><b>${NO[i]} ${o}</b> 정답</li>`;
+    const s = o.match(/[ㄱㄴㄷㄹ]/g), bad = s.filter(l => !T.includes(l)), miss = T.filter(l => !s.includes(l));
+    return `<li><b>${NO[i]} ${o}</b> ${[bad.length && `${bad.join(', ')}은(는) 틀린 보기`, miss.length && `옳은 보기 ${miss.join(', ')}이(가) 빠짐`].filter(Boolean).join(', ')}</li>`;
+  }).join('');
+  return judge + opts;
+}
+function examQ(q, n) {
+  const p = X.pick[n], ok = p === q.a;
+  const cls = i => !X.done ? (p === i ? 'on' : '') : i === q.a ? 'good' : i === p ? 'bad' : '';
+  return `<div class="qcard exq" id="x${n}">
+    <p class="qtext"><span class="exno">${n + 1}.</span> ${q.q}</p>
+    ${q.d || ''}
+    ${q.b ? `<div class="bogi">${q.b.map((s, i) => `<p>${GA[i]}. ${s[0]}</p>`).join('')}</div>` : ''}
+    ${q.o.map((o, i) => `<button class="opt ${cls(i)}" data-act="xpick" data-n="${n}" data-i="${i}" ${X.done ? 'disabled' : ''}><span class="no">${NO[i]}</span><span>${o}</span></button>`).join('')}
+    ${X.done ? `<div class="fb ${ok ? 'good' : 'bad'}"><b class="h">${ok ? '정답' : p === undefined ? '풀지 않음' : '오답'} · 정답 ${NO[q.a]}</b><div>${q.e}</div><ul class="why">${examWhy(q)}</ul></div>` : ''}
+  </div>`;
+}
+function renderExam() {
+  const L = X.list, score = L.filter((q, i) => X.pick[i] === q.a).length, pct = Math.round(score / L.length * 100);
+  const head = X.done
+    ? `<div class="score"><div class="big">${pct}<small>점</small></div><p>${L.length}문항 중 ${score}문항 정답</p>
+       <div class="exsum">${L.map((q, i) => `<button class="${X.pick[i] === q.a ? 'o' : 'x'}" data-act="xjump" data-n="${i}">${i + 1} ${X.pick[i] === q.a ? '○' : '✕'}</button>`).join('')}</div></div>
+       <div class="cta"><button class="btn main" data-act="xretry">다시 풀기</button></div>`
+    : `<div class="ch-title"><h1>수능 실전 문제</h1><p>자료 해석·개념 통합형 고난도 ${L.length}문항이에요. 모두 고른 뒤 채점하기를 누르세요.</p></div>`;
+  app.innerHTML = `<div class="exam">${head}${L.map(examQ).join('')}
+    <div class="cta">${X.done
+      ? `<button class="btn main" data-act="xretry">다시 풀기</button><a class="btn" href="#/c/${X.id}">단원으로 돌아가기</a>`
+      : `<button class="btn main" data-act="xgrade">채점하기 (<span id="xcnt">${Object.keys(X.pick).length}</span>/${L.length} 응답)</button>`}</div></div>`;
+  window.scrollTo(0, 0);
+}
+
 /* ---------- 이벤트 ---------- */
 document.addEventListener('click', e => {
   const k = e.target.closest('.hide-on .k');
@@ -408,6 +458,20 @@ document.addEventListener('click', e => {
     FC.list.shift(); FC.known++; FC.back = false; renderFlash();
   } else if (act === 'flash-again') {
     startFlash(FC.id);
+  } else if (act === 'xpick') {
+    X.pick[t.dataset.n] = +t.dataset.i;
+    $$(`[data-act="xpick"][data-n="${t.dataset.n}"]`).forEach(b => b.classList.toggle('on', b === t));
+    $('#xcnt').textContent = Object.keys(X.pick).length;
+  } else if (act === 'xgrade') {
+    X.done = true;
+    const pct = Math.round(X.list.filter((q, i) => X.pick[i] === q.a).length / X.list.length * 100);
+    const best = store.get('examBest', {});
+    if (best[X.id] === undefined || pct > best[X.id]) { best[X.id] = pct; store.set('examBest', best); }
+    renderExam();
+  } else if (act === 'xretry') {
+    startExam(X.id);
+  } else if (act === 'xjump') {
+    $('#x' + t.dataset.n).scrollIntoView({ behavior: 'smooth' });
   }
 });
 document.addEventListener('submit', e => {
@@ -430,6 +494,7 @@ function route() {
   const [a, b, c] = parts;
   if (a === 'c') chapter(b);
   else if (a === 'f') startFlash(b);
+  else if (a === 'x') startExam(b);
   else if (a === 'q' && b === 'mock') startQuiz('mock', null);
   else if (a === 'q' && b === 'wrong') {
     if (wrongIds().length) startQuiz('wrong', null);

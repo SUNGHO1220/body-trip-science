@@ -270,6 +270,26 @@ ol.steps li:not(:last-child)::after { content: "▼"; position: absolute; left: 
 .pick .btn { text-align: left; display: flex; justify-content: space-between; }
 .pick .btn small { font-weight: 600; color: var(--sub); }
 
+/* 수능 실전 */
+.exq { margin-bottom: 16px; scroll-margin-top: 66px; }
+.exam .qtext { font-size: 16.5px; }
+.exam .tb tbody th { white-space: normal; }
+.exno { font-weight: 800; color: var(--c); }
+.exd { background: #f8f5ea; border-radius: 10px; padding: 9px 12px; margin: 10px 0; font-size: 15px; line-height: 1.6; }
+.exnote { font-size: 13px; color: var(--sub); text-align: right; margin: -4px 0 8px; }
+.bogi { border: 1.5px solid var(--ink); border-radius: 8px; padding: 6px 12px 8px; margin: 12px 0; font-size: 15px; background: #fff; }
+.bogi::before { content: "<보기>"; display: block; text-align: center; font-weight: 800; font-size: 13.5px; color: var(--sub); }
+.bogi p { margin: 4px 0; padding-left: 1.4em; text-indent: -1.4em; }
+.opt.on { border-color: var(--ink); background: var(--c-soft); font-weight: 700; }
+.fb ul.why { margin: 8px 0 0; padding-left: 18px; font-size: 14px; }
+.fb ul.why li { margin: 3px 0; color: var(--sub); }
+.fb ul.why li.ok { color: var(--good); }
+.fb ul.why b { color: var(--ink); }
+.exsum { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 12px; }
+.exsum button { border: 1.5px solid; border-radius: 16px; padding: 3px 11px; font-size: 14px; font-weight: 800; background: #fff; }
+.exsum .o { color: var(--good); background: var(--good-bg); }
+.exsum .x { color: var(--bad); background: var(--bad-bg); }
+
 @media (min-width: 560px) { .qtext { font-size: 19px; } }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
