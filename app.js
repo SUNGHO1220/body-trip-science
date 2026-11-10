@@ -20,39 +20,86 @@ const shuffle = arr => {
 const strip = html => html.replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '');
 const chById = id => CHAPTERS.find(c => c.id === id);
 
+// 대단원. 단원 데이터 파일의 CHAPTERS 항목은 unit으로 대단원을 가리킨다(없으면 bio).
+const UNITS = [
+  {
+    id: 'bio', no: 'Ⅵ', title: '동물과 에너지', name: '몸속 여행 과학', emo: '🫀', color: '#e4791f', soft: '#fff1e2',
+    hero: `<h1>밥 한 숟가락의 <em>몸속 여행</em></h1>
+    <p>그림으로 이해하고, 카드로 외우고, 문제로 확인해요.</p>
+    <div class="journey"><span>🍚 소화</span><i>→</i><span>🫀 순환</span><i>→</i><span>🫁 호흡</span><i>→</i><span>💧 배설</span></div>`,
+    mock: { digest: 8, circ: 5, resp: 4, excr: 4, all: 1 }, mockKey: 'mockBest',
+  },
+  {
+    id: 'elec', no: 'Ⅶ', title: '전기와 자기', name: '전기와 자기', emo: '⚡', color: '#2b62c4', soft: '#e7efff',
+    hero: `<h1>문지르면 생기는 전기가 <em>모터를 돌리기까지</em></h1>
+    <p>전하, 전류, 자기장을 그림으로 이해하고 계산 문제까지 확인해요.</p>
+    <div class="journey"><span>⚡ 전기의 발생</span><i>→</i><span>🔋 회로와 에너지</span><i>→</i><span>🧲 전류의 자기 작용</span></div>`,
+    mock: { charge: 7, circuit: 9, magnet: 5, esum: 1 }, mockKey: 'mockBest_elec',
+  },
+];
+CHAPTERS.forEach(c => { if (!c.unit) c.unit = 'bio'; });
+const unitById = id => UNITS.find(u => u.id === id);
+const curUnit = () => unitById(store.get('unit', 'bio')) || UNITS[0];
+const setUnit = id => { if (unitById(id)) store.set('unit', id); };
+const unitChs = u => CHAPTERS.filter(c => c.unit === u.id);
+
 // 모든 문제에 고유 번호 붙이기
 const QBYID = {};
-Object.keys(QUIZ).forEach(ch => QUIZ[ch].forEach((q, i) => { q.id = ch + '-' + i; q.ch = ch; QBYID[q.id] = q; }));
+Object.keys(QUIZ).forEach(ch => QUIZ[ch].forEach((q, i) => { q.id = ch + '-' + i; q.ch = ch; q.unit = chById(ch).unit; QBYID[q.id] = q; }));
 const FIGQ = { villus: () => FIG.villus(true), heart: () => FIG.heart(true), nephronQ: () => FIG.nephron(-1, true) };
+const figQ = name => FIGQ[name] ? FIGQ[name]() : FIG[name](true);
 
 const app = $('#app');
 const setAccent = c => {
-  document.documentElement.style.setProperty('--c', c ? c.color : '#e4791f');
-  document.documentElement.style.setProperty('--c-soft', c ? c.soft : '#fff1e2');
+  c = c || curUnit();
+  document.documentElement.style.setProperty('--c', c.color);
+  document.documentElement.style.setProperty('--c-soft', c.soft);
 };
-const wrongIds = () => store.get('wrong', []).filter(id => QBYID[id]);
+const wrongIds = () => store.get('wrong', []).filter(id => QBYID[id] && QBYID[id].unit === curUnit().id);
 const setBar = (title, back) => {
   $('#top').innerHTML = `<div class="bar">${back ? `<a class="back" href="${back}" aria-label="뒤로">←</a>` : ''}<strong>${title}</strong></div>`;
 };
 const setTabs = cur => {
   const n = wrongIds().length;
-  const tabs = [['#/', '🏠', '공부', 'home'], ['#/cards', '🃏', '암기 카드', 'cards'], ['#/mock', '📝', '모의고사', 'mock'], ['#/wrong', '❗', '오답 노트', 'wrong']];
+  const tabs = [[`#/u/${curUnit().id}`, '🏠', '공부', 'home'], ['#/cards', '🃏', '암기 카드', 'cards'], ['#/mock', '📝', '모의고사', 'mock'], ['#/wrong', '❗', '오답 노트', 'wrong']];
   $('#tabs').innerHTML = tabs.map(t => `<a href="${t[0]}" class="${t[3] === cur ? 'on' : ''}"><span>${t[1]}</span>${t[2]}${t[3] === 'wrong' && n ? `<em class="num" style="font-style:normal">${n}</em>` : ''}</a>`).join('');
 };
 const focusMode = on => document.body.classList.toggle('focus', on);
 
-/* ---------- 홈 ---------- */
-function home() {
-  setAccent(); setBar('몸속 여행 과학'); setTabs('home'); focusMode(false);
+/* ---------- 첫 화면: 대단원 고르기 ---------- */
+function unitHome() {
+  setAccent(); setBar('중학 과학 공부방'); setTabs('home'); focusMode(false);
+  const read = store.get('read', {});
+  app.innerHTML = `
+  <section class="hero">
+    <small>중학교 과학</small>
+    <h1>오늘은 <em>어떤 단원</em>을 공부할까요?</h1>
+    <p>단원을 고르면 내용 공부, 문제 풀기, 수능 실전 문제, 암기 카드, 모의고사, 오답 노트를 쓸 수 있어요.</p>
+  </section>
+  ${UNITS.map(u => {
+    const chs = unitChs(u), lessons = chs.reduce((s, c) => s + c.lessons.length, 0);
+    const done = chs.reduce((s, c) => s + c.lessons.filter((_, i) => read[c.id + i]).length, 0);
+    const nq = chs.reduce((s, c) => s + (QUIZ[c.id] || []).length, 0), nx = chs.reduce((s, c) => s + (EXAM[c.id] || []).length, 0);
+    return `<a class="ch-card" href="#/u/${u.id}" style="--c:${u.color};--c-soft:${u.soft}">
+      <div class="ch-head"><div class="ch-emo">${u.emo}</div><div><h2>${u.no}. ${u.title}</h2><p>${chs.map(c => c.title).join(' · ')}</p></div></div>
+      <div class="meter"><b style="width:${Math.round(done / lessons * 100)}%"></b></div>
+      <div class="ch-stat"><span>공부 ${done}/${lessons}</span><span>문제 ${nq}개 · 실전 ${nx}문항</span></div>
+    </a>`;
+  }).join('')}`;
+}
+
+/* ---------- 대단원 홈 ---------- */
+function home(uid) {
+  setUnit(uid);
+  const u = curUnit();
+  setAccent(); setBar(`${u.no}. ${u.title}`, '#/'); setTabs('home'); focusMode(false);
   const read = store.get('read', {}), best = store.get('best', {});
   app.innerHTML = `
   <section class="hero">
-    <small>Ⅵ. 동물과 에너지</small>
-    <h1>밥 한 숟가락의 <em>몸속 여행</em></h1>
-    <p>그림으로 이해하고, 카드로 외우고, 문제로 확인해요.</p>
-    <div class="journey"><span>🍚 소화</span><i>→</i><span>🫀 순환</span><i>→</i><span>🫁 호흡</span><i>→</i><span>💧 배설</span></div>
+    <small>${u.no}. ${u.title}</small>
+    ${u.hero}
   </section>
-  ${CHAPTERS.map(c => {
+  ${unitChs(u).map(c => {
     const done = c.lessons.filter((_, i) => read[c.id + i]).length;
     const pct = Math.round(done / c.lessons.length * 100);
     const b = best[c.id];
@@ -67,8 +114,9 @@ function home() {
 /* ---------- 단원 공부 ---------- */
 function chapter(id) {
   const c = chById(id);
-  if (!c) return home();
-  setAccent(c); setBar(`${c.emo} ${c.title}`, '#/'); setTabs('home'); focusMode(false);
+  if (!c) return unitHome();
+  setUnit(c.unit);
+  setAccent(c); setBar(`${c.emo} ${c.title}`, `#/u/${c.unit}`); setTabs('home'); focusMode(false);
   const read = store.get('read', {});
   const hide = store.get('hide', false);
   const xb = store.get('examBest', {})[id];
@@ -187,14 +235,114 @@ const WIDGETS = {
     el.addEventListener('click', e => { const b = e.target.closest('[data-n]'); if (b) show(+b.dataset.n); });
     show(0);
   },
+  // ---- Ⅶ. 전기와 자기 ----
+  scope(el) {
+    const M = '−';
+    const S = [
+      ['구조', { lab: true }, '<b>검전기</b> 금속판, 금속 막대, 금속박이 모두 금속(도체)이라 안에서 전자가 자유롭게 움직여요. 대전되지 않은 상태에서는 금속박이 오므라져 있어요.'],
+      ['(+)대전체', { rod: '+', plate: '− − −', leaf: '+', open: 1 }, '<b>대전되지 않은 검전기 + (+)대전체</b> (+)대전체가 전자를 <b>끌어당겨(인력)</b> 금속판은 (−)전하, 전자가 적어진 금속박은 (+)전하로 대전돼요. 같은 전하끼리 밀어내서 금속박이 <b>벌어져요</b>.'],
+      ['(−)대전체', { rod: M, plate: '+ + +', leaf: M, open: 1 }, '<b>대전되지 않은 검전기 + (−)대전체</b> (−)대전체가 전자를 <b>밀어내(척력)</b> 금속판은 (+)전하, 전자가 많아진 금속박은 (−)전하로 대전돼요. 금속박이 <b>벌어져요</b>.'],
+      ['대전 안 된 물체', { rod: '0' }, '<b>대전되지 않은 물체</b>를 가까이 하면 전자가 움직이지 않아 금속박이 <b>벌어지지 않아요</b>. → 대전 여부를 알 수 있어요.'],
+      ['(−)검전기+(−)', { rod: M, plate: '+', leaf: '− −', open: 2 }, '<b>(−)로 대전된 검전기 + (−)대전체 (같은 전하)</b> 전자가 금속박 쪽으로 더 밀려 내려가 금속박의 (−)가 더 많아져요. 금속박이 <b>더 벌어져요</b>.'],
+      ['(−)검전기+(+)', { rod: '+', plate: '− − − −' }, '<b>(−)로 대전된 검전기 + (+)대전체 (다른 전하)</b> 금속박의 전자가 금속판 쪽으로 끌려 올라가 금속박의 (−)가 적어져요. 금속박이 <b>오므라들어요</b>.'],
+    ];
+    el.innerHTML = `<div class="chips">${S.map((s, i) => `<button data-s="${i}">${s[0]}</button>`).join('')}</div><div class="sc"></div><div class="info"></div>`;
+    const show = i => {
+      $$('.chips button', el).forEach(b => b.classList.toggle('on', +b.dataset.s === i));
+      $('.sc', el).innerHTML = FIG.scope(S[i][1]);
+      $('.info', el).innerHTML = S[i][2];
+    };
+    el.addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (b) show(+b.dataset.s); });
+    show(0);
+  },
+  scopeStep(el) {
+    const M = '−';
+    const D = {
+      m: [
+        [{ rod: M, plate: '+ + +', leaf: M, open: 1 }, '<b>① 가까이 하기</b> (−)대전체가 전자를 밀어내 금속박이 (−)로 대전되어 벌어져요.'],
+        [{ rod: M, plate: '+ + +', hand: true }, '<b>② 손가락 대기</b> 밀려난 전자가 손가락을 통해 몸으로 빠져나가요. 금속박이 오므라들어요.'],
+        [{ plate: '+', leaf: '+', open: 1 }, '<b>③ 손가락 떼고 대전체 치우기</b> 전자가 부족한 검전기 전체가 <b>(+)전하</b>로 대전되어 금속박이 다시 벌어져요.'],
+      ],
+      p: [
+        [{ rod: '+', plate: '− − −', leaf: '+', open: 1 }, '<b>① 가까이 하기</b> (+)대전체가 전자를 끌어당겨 금속박이 (+)로 대전되어 벌어져요.'],
+        [{ rod: '+', plate: '− − −', hand: true }, '<b>② 손가락 대기</b> 손가락을 통해 몸에서 전자가 들어와 금속박을 채워요. 금속박이 오므라들어요.'],
+        [{ plate: M, leaf: M, open: 1 }, '<b>③ 손가락 떼고 대전체 치우기</b> 전자가 남는 검전기 전체가 <b>(−)전하</b>로 대전되어 금속박이 벌어져요.'],
+      ],
+    };
+    let sg = 'm', st = 0;
+    el.innerHTML = `<div class="seg"><button data-g="m">(−)대전체로</button><button data-g="p">(+)대전체로</button></div>
+      <div class="seg"><button data-t="0">① 접근</button><button data-t="1">② 손가락</button><button data-t="2">③ 치우기</button></div><div class="sc"></div><div class="info"></div>`;
+    const show = () => {
+      $$('[data-g]', el).forEach(b => b.classList.toggle('on', b.dataset.g === sg));
+      $$('[data-t]', el).forEach(b => b.classList.toggle('on', +b.dataset.t === st));
+      $('.sc', el).innerHTML = FIG.scope(D[sg][st][0]);
+      $('.info', el).innerHTML = D[sg][st][1];
+    };
+    el.addEventListener('click', e => {
+      const g = e.target.closest('[data-g]'), t = e.target.closest('[data-t]');
+      if (g) { sg = g.dataset.g; st = 0; show(); }
+      if (t) { st = +t.dataset.t; show(); }
+    });
+    show();
+  },
+  ohm(el) {
+    el.innerHTML = `<div class="sliders"><label>전압 V = <b data-o="v"></b> V<input type="range" min="1" max="12" value="6" data-k="v" aria-label="전압"></label>
+      <label>저항 R = <b data-o="r"></b> Ω<input type="range" min="1" max="12" value="3" data-k="r" aria-label="저항"></label></div><div class="info"></div>`;
+    const upd = () => {
+      const v = +$('[data-k="v"]', el).value, r = +$('[data-k="r"]', el).value, i = v / r;
+      $('[data-o="v"]', el).textContent = v; $('[data-o="r"]', el).textContent = r;
+      $('.info', el).innerHTML = `<b class="t">I = V ÷ R = ${v} ÷ ${r} = ${num(i)} A</b>
+        <div class="meter" style="margin:6px 0"><b style="width:${Math.min(100, i / 12 * 100)}%"></b></div>
+        = ${num(i * 1000)} mA · 소비 전력 P = V × I = ${num(v * i)} W`;
+    };
+    el.addEventListener('input', upd);
+    upd();
+  },
+  combo(el) {
+    let kind = 'series';
+    el.innerHTML = `<div class="seg"><button data-c="series">직렬연결</button><button data-c="parallel">병렬연결</button></div>
+      <div class="sliders"><label>전체 전압 V = <b data-o="v"></b> V<input type="range" min="1" max="12" value="12" data-k="v" aria-label="전압"></label>
+      <label>R₁ = <b data-o="a"></b> Ω<input type="range" min="1" max="12" value="3" data-k="a" aria-label="저항 1"></label>
+      <label>R₂ = <b data-o="b"></b> Ω<input type="range" min="1" max="12" value="6" data-k="b" aria-label="저항 2"></label></div>
+      <div class="info"></div>`;
+    const upd = () => {
+      const g = k => +$(`[data-k="${k}"]`, el).value, v = g('v'), a = g('a'), b = g('b');
+      ['v', 'a', 'b'].forEach(k => { $(`[data-o="${k}"]`, el).textContent = g(k); });
+      $$('[data-c]', el).forEach(x => x.classList.toggle('on', x.dataset.c === kind));
+      let rows;
+      if (kind === 'series') {
+        const R = a + b, I = v / R;
+        rows = [['전체 저항', `R₁ + R₂ = ${a} + ${b} = ${num(R)} Ω`], ['전체 전류', `V ÷ R = ${v} ÷ ${num(R)} = ${num(I)} A`], ['I₁ = I₂', `${num(I)} A (모두 같다)`], ['V₁', `I × R₁ = ${num(I * a)} V`], ['V₂', `I × R₂ = ${num(I * b)} V`]];
+      } else {
+        const R = a * b / (a + b);
+        rows = [['전체 저항', `${a}×${b} ÷ (${a}+${b}) = ${num(R)} Ω`], ['V₁ = V₂', `${v} V (모두 같다)`], ['I₁', `V ÷ R₁ = ${num(v / a)} A`], ['I₂', `V ÷ R₂ = ${num(v / b)} A`], ['전체 전류', `I₁ + I₂ = ${num(v / a + v / b)} A`]];
+      }
+      $('.info', el).innerHTML = `<table class="tb tiny">${rows.map(r => `<tr><th>${r[0]}</th><td class="l">${r[1]}</td></tr>`).join('')}</table>`;
+    };
+    el.addEventListener('input', upd);
+    el.addEventListener('click', e => { const c = e.target.closest('[data-c]'); if (c) { kind = c.dataset.c; upd(); } });
+    upd();
+  },
+  coil(el) {
+    const T = ['전류 방향을 바꾸기 전: 엄지가 오른쪽을 가리키므로 <b>오른쪽이 N극</b>이에요.', '전류 방향을 반대로 하면 엄지도 반대로! 이제 <b>왼쪽이 N극</b>이에요.'];
+    el.innerHTML = `<div class="seg"><button data-v="0">전류 방향 ①</button><button data-v="1">전류 방향 ② (반대)</button></div><div class="cw"></div><div class="info"></div>`;
+    const show = v => {
+      $$('[data-v]', el).forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+      $('.cw', el).innerHTML = FIG.coil(v === 1);
+      $('.info', el).innerHTML = T[v];
+    };
+    el.addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) show(+b.dataset.v); });
+    show(0);
+  },
 };
+const num = x => +x.toFixed(2);
 
 /* ---------- 퀴즈 ---------- */
 let Q = null;
 function pickList(mode, ch) {
   if (mode === 'wrong') return shuffle(wrongIds().map(id => QBYID[id]));
   if (mode === 'mock') {
-    const plan = { digest: 8, circ: 5, resp: 4, excr: 4, all: 1 };
+    const plan = curUnit().mock;
     return shuffle(Object.keys(plan).flatMap(k => shuffle(QUIZ[k]).slice(0, plan[k])));
   }
   const pool = shuffle(QUIZ[ch]);
@@ -202,6 +350,7 @@ function pickList(mode, ch) {
 }
 function startQuiz(mode, ch, list) {
   const c = ch ? chById(ch) : null;
+  if (c) setUnit(c.unit);
   setAccent(c);
   const title = mode === 'wrong' ? '오답 다시 풀기' : mode === 'mock' ? '단원 모의고사' : `${c.title} 문제`;
   const back = mode === 'wrong' ? '#/wrong' : mode === 'mock' ? '#/mock' : `#/c/${ch}`;
@@ -221,7 +370,7 @@ function renderQ() {
   if (q.t === 'mc' || q.t === 'fig') {
     const idx = q.o.map((_, i) => i);
     Q.opts = q.keep ? idx : shuffle(idx);
-    body = (q.fig ? FIGQ[q.fig]() : '') + `<div style="margin-top:10px">${Q.opts.map((oi, n) => `<button class="opt" data-act="mc" data-oi="${oi}"><span class="no">${n + 1}</span><span>${q.o[oi]}</span></button>`).join('')}</div>`;
+    body = (q.fig ? figQ(q.fig) : '') + `<div style="margin-top:10px">${Q.opts.map((oi, n) => `<button class="opt" data-act="mc" data-oi="${oi}"><span class="no">${n + 1}</span><span>${q.o[oi]}</span></button>`).join('')}</div>`;
   } else if (q.t === 'ox') {
     body = `<div class="ox"><button class="opt" data-act="ox" data-v="1" aria-label="맞다" style="color:#16895c">O</button><button class="opt" data-act="ox" data-v="0" aria-label="틀리다" style="color:#cf3b30">X</button></div>`;
   } else if (q.t === 'sa') {
@@ -280,7 +429,7 @@ function renderResult() {
     const best = store.get('best', {});
     if (best[Q.ch] === undefined || pct > best[Q.ch]) { best[Q.ch] = pct; store.set('best', best); }
   }
-  if (Q.mode === 'mock') store.set('mockBest', Math.max(pct, store.get('mockBest', 0)));
+  if (Q.mode === 'mock') { const k = curUnit().mockKey; store.set(k, Math.max(pct, store.get(k, 0))); }
   const again = Q.mode === 'wrong' ? '#/q/wrong' : Q.mode === 'mock' ? null : `#/q/${Q.ch}/${Q.mode}`;
   app.innerHTML = `
     <div class="score"><div class="big">${pct}<small>점</small></div><p>${total}문제 중 ${Q.score}개 정답</p><p style="color:var(--sub)">${CHEER(pct)}</p></div>
@@ -298,15 +447,17 @@ const wrongRow = q => `<div class="wrow"><div class="wq">${strip(q.q)}</div><div
 /* ---------- 암기 카드 ---------- */
 let FC = null;
 function cardsHome() {
-  setAccent(); setBar('암기 카드'); setTabs('cards'); focusMode(false);
+  const u = curUnit();
+  setAccent(); setBar(`암기 카드 · ${u.no}. ${u.title}`); setTabs('cards'); focusMode(false);
   app.innerHTML = `<div class="ch-title"><h1>암기 카드</h1><p>카드를 눌러 답을 확인하고, 외운 카드만 넘겨요. 모르는 카드는 뒤로 돌아와 다시 나와요.</p></div>
   <div class="pick">
-    ${CHAPTERS.map(c => `<a class="btn" href="#/f/${c.id}"><span>${c.emo} ${c.title}</span><small>${c.cards.length}장</small></a>`).join('')}
+    ${unitChs(u).map(c => `<a class="btn" href="#/f/${c.id}"><span>${c.emo} ${c.title}</span><small>${c.cards.length}장</small></a>`).join('')}
   </div>`;
 }
 function startFlash(id) {
   const c = chById(id);
   if (!c) return cardsHome();
+  setUnit(c.unit);
   setAccent(c); setBar(`${c.emo} ${c.title} 암기 카드`, '#/cards'); focusMode(true);
   FC = { id, c, list: shuffle(c.cards), total: c.cards.length, known: 0, back: false };
   renderFlash();
@@ -332,17 +483,20 @@ function renderFlash() {
 
 /* ---------- 모의고사 / 오답 ---------- */
 function mockHome() {
-  setAccent(); setBar('단원 모의고사'); setTabs('mock'); focusMode(false);
-  const b = store.get('mockBest', null);
-  const total = Object.values(QUIZ).reduce((s, a) => s + a.length, 0);
-  app.innerHTML = `<div class="ch-title"><h1>단원 모의고사</h1><p>전체 ${total}문제 중 22문제를 단원별로 골고루 뽑아요. 풀 때마다 문제가 달라져요.</p></div>
+  const u = curUnit();
+  setAccent(); setBar(`단원 모의고사 · ${u.no}. ${u.title}`); setTabs('mock'); focusMode(false);
+  const b = store.get(u.mockKey, null);
+  const total = unitChs(u).reduce((s, c) => s + QUIZ[c.id].length, 0);
+  const n = Object.values(u.mock).reduce((s, v) => s + v, 0);
+  app.innerHTML = `<div class="ch-title"><h1>${u.no}. ${u.title} 모의고사</h1><p>전체 ${total}문제 중 ${n}문제를 단원별로 골고루 뽑아요. 풀 때마다 문제가 달라져요.</p></div>
     ${b !== null ? `<p style="font-weight:700">내 최고 점수: ${b}점</p>` : ''}
     <div class="cta"><a class="btn main" href="#/q/mock">시작하기</a></div>`;
 }
 function wrongHome() {
-  setAccent(); setBar('오답 노트'); setTabs('wrong'); focusMode(false);
+  const u = curUnit();
+  setAccent(); setBar(`오답 노트 · ${u.no}. ${u.title}`); setTabs('wrong'); focusMode(false);
   const ids = wrongIds();
-  app.innerHTML = ids.length ? `<div class="ch-title"><h1>오답 노트</h1><p>틀린 문제가 모여 있어요. 다시 풀어서 맞히면 사라져요.</p></div>
+  app.innerHTML = ids.length ? `<div class="ch-title"><h1>${u.no}. ${u.title} 오답 노트</h1><p>틀린 문제가 모여 있어요. 다시 풀어서 맞히면 사라져요.</p></div>
     <div class="cta"><a class="btn main" href="#/q/wrong">${ids.length}문제 다시 풀기</a></div>
     <div class="wlist">${ids.map(id => wrongRow(QBYID[id])).join('')}</div>`
     : `<div class="empty"><span>🌟</span><p>아직 틀린 문제가 없어요.<br>문제를 풀면 틀린 것이 여기에 모여요.</p></div>`;
@@ -354,7 +508,8 @@ const NO = ['①', '②', '③', '④', '⑤'];
 const GA = 'ㄱㄴㄷㄹ';
 function startExam(id) {
   const c = chById(id);
-  if (!c || !EXAM[id]) return home();
+  if (!c || !EXAM[id]) return unitHome();
+  setUnit(c.unit);
   setAccent(c); setBar(`${c.emo} ${c.title} 수능 실전`, `#/c/${id}`); setTabs('home'); focusMode(true);
   X = { id, list: EXAM[id], pick: {}, done: false };
   renderExam();
@@ -492,7 +647,8 @@ document.addEventListener('submit', e => {
 function route() {
   const parts = (location.hash.replace(/^#\/?/, '') || '').split('/').filter(Boolean);
   const [a, b, c] = parts;
-  if (a === 'c') chapter(b);
+  if (a === 'u' && unitById(b)) home(b);
+  else if (a === 'c') chapter(b);
   else if (a === 'f') startFlash(b);
   else if (a === 'x') startExam(b);
   else if (a === 'q' && b === 'mock') startQuiz('mock', null);
@@ -504,7 +660,7 @@ function route() {
   else if (a === 'cards') cardsHome();
   else if (a === 'mock') mockHome();
   else if (a === 'wrong') wrongHome();
-  else home();
+  else unitHome();
   window.scrollTo(0, 0);
 }
 window.addEventListener('hashchange', route);

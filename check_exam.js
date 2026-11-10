@@ -1,5 +1,5 @@
-// 수능 실전 문제(exam.js) 검증: node check_exam.js
-// (Node가 없으면 figures.js, content.js, exam.js 다음에 이 파일을 브라우저에서 불러와도 같은 검사를 한다.)
+// 수능 실전 문제(exam.js, elec_exam.js) 검증: node check_exam.js
+// (Node가 없으면 index.html과 같은 순서로 데이터 파일을 불러온 다음에 이 파일을 브라우저에서 불러와도 같은 검사를 한다.)
 (() => {
 const isNode = typeof window === 'undefined';
 const log = isNode ? console.log : s => document.body.insertAdjacentText('beforeend', s + '\n');
@@ -7,7 +7,7 @@ let data;
 if (isNode) {
   const fs = require('fs'), vm = require('vm'), path = require('path');
   const ctx = vm.createContext({});
-  for (const f of ['figures.js', 'content.js', 'exam.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), ctx, { filename: f });
+  for (const f of ['figures.js', 'content.js', 'exam.js', 'elec_figures.js', 'elec_content.js', 'elec_exam.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, f), 'utf8'), ctx, { filename: f });
   data = vm.runInContext('({ CHAPTERS, EXAM })', ctx);
 } else data = { CHAPTERS, EXAM };
 const { CHAPTERS: chapters, EXAM: exam } = data;

@@ -295,3 +295,10 @@ ol.steps li:not(:last-child)::after { content: "▼"; position: absolute; left: 
   * { transition: none !important; }
   .moving { display: none; }
 }
+
+/* Ⅶ. 전기와 자기 위젯 */
+.sliders { display: grid; gap: 6px; margin: 8px 0; }
+.sliders label { display: block; font-weight: 700; font-size: 15px; }
+.sliders input[type=range] { display: block; width: 100%; accent-color: var(--c); }
+.sc .fig { max-width: 260px; }
+.info .tb { margin-top: 2px; }
